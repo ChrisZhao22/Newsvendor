@@ -4,7 +4,6 @@ from collections import defaultdict
 import numpy as np
 from scipy.optimize import linprog
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 
 
 plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'PingFang SC']
