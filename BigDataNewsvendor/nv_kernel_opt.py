@@ -1,186 +1,116 @@
 import numpy as np
+import pandas as pd
+import json
 from scipy.stats import norm
-import scipy.io
 import time
+import os
 
 # ==========================================
 # 1. 数据加载
 # ==========================================
-import os
-data_file = 'ground_truth.mat'
+data_file = 'newsvendor_simple_data.csv'
+config_file = 'data_config.json'
 
-if not os.path.exists(data_file):
-    raise FileNotFoundError(f"找不到 {data_file}，请先运行 data_generator.py！")
+if not os.path.exists(data_file): raise FileNotFoundError("找不到数据文件！")
 
-data = scipy.io.loadmat(data_file)
+df = pd.read_csv(data_file)
+Demand = df['Demand'].values
+DayC = df['DayC'].values.reshape(-1, 1)
+Time = df['Time'].values.reshape(-1, 1)
+Features_Raw = np.hstack((DayC, Time))
 
-# 读取变量
-Demand = data['Demand'].flatten() # 确保是一维数组
-DayC = data['DayC']
-Time = data['Time']
-TimeC = data['TimeC']
-Past = data['Past']
-
-# 读取统一的参数
-lntr = int(data['lntr'][0][0])
-lnva = int(data['lnva'][0][0])
-lnte = int(data['lnte'][0][0])
+with open(config_file, 'r') as f: config = json.load(f)
+lntr = config['lntr']
+lnva = config['lnva']
+lnte = config['lnte']
 TOTAL_LEN = len(Demand)
 
-print(f"✅ 已加载统一数据: ground_truth.mat (Total: {TOTAL_LEN})")
-# ==========================================
+print(f"✅ 已加载数据. Features shape: {Features_Raw.shape}")
 
 # ==========================================
 # 2. 参数设置
 # ==========================================
-delay = 3           # 决策延迟
-p = 12 * 14         # 特征参数
-# p = 0 # 你可以修改 p 来测试不同的特征组合
-
-# 带宽向量 (Bandwidth vector)
-bandvec = [0.08] 
-Blen = len(bandvec)
-
-# 报童模型成本参数
+delay = 3
+bandvec = [0.08]  # 带宽列表
 b = 2.5 / 3.5
 h = 1 / 3.5
-r = b / (b + h)     # 临界分位数 (Target Quantile)
+r = b / (b + h)
 
-# ==========================================
-# 3. 特征构建逻辑
-# ==========================================
-if p == -36:
-    Features_Raw = TimeC
-elif p == -24:
-    Features_Raw = DayC
-elif p == -12:
-    Features_Raw = np.hstack((DayC, TimeC))
-elif p == 0:
-    Features_Raw = np.hstack((DayC, TimeC, Time))
-else:
-    # 对应 Features = [DayC, TimeC, Time, Past(:,[1:p])]
-    # 注意：Python切片是前闭后开，所以用 :p
-    Features_Raw = np.hstack((DayC, TimeC, Time, Past[:, :p]))
 
-lF = Features_Raw.shape[1]
-print(f"Feature shape: {Features_Raw.shape}")
-
-# ==========================================
-# 4. 辅助函数
-# ==========================================
 def nv_cost(q, d, b, h):
     return np.maximum(d - q, 0) * b + np.maximum(q - d, 0) * h
 
-# ==========================================
-# 5. 主循环逻辑 (Kernel Optimization)
-# ==========================================
 
-# 初始化结果矩阵
-Valfac = np.zeros((Blen, lnte)) 
-QfacD = np.zeros((Blen, lnte))
+# ==========================================
+# 5. 主循环逻辑
+# ==========================================
+# 结果存储：如果有多个带宽，我们需要一种方式存储
+# 这里我们使用字典来收集每一列数据
+results_dict = {}
 
 start_time = time.time()
 
-for bi in range(Blen):
-    bandwidth = bandvec[bi]
+for bandwidth in bandvec:
     print(f"Processing bandwidth: {bandwidth}")
-    run_steps = 100 
+
+    Q_list = np.zeros(lnte)
+    Cost_list = np.zeros(lnte)
+
     start_idx = lntr + lnva
-    
-    for k in range(run_steps):
+
+    for k in range(lnte):
         t = start_idx + k
-        
-        # --------------------------------------
-        # A. 特征归一化 (Window Normalization)
-        # --------------------------------------
-        
-        # 获取当前窗口的数据 (包含历史 + 当前这一行)
-        # 窗口大小 = lntr + 1
-        window_features = Features_Raw[t - lntr : t + 1, :].astype(float)
-        
-        # 计算每一列的 Inf 范数 (即绝对值的最大值)
-        # axis=0 表示沿列计算
+
+        # A. 特征归一化
+        window_features = Features_Raw[t - lntr: t + 1, :].astype(float)
         norms = np.linalg.norm(window_features, ord=np.inf, axis=0)
-        
-        # 避免除以 0
         norms[norms == 0] = 1.0
-        
-        # 归一化
         FeaturesT = window_features / norms
-        
-        # 分离出“当前特征”和“历史特征”
-        # 当前特征是最后一行 (索引 t)
+
         current_feat = FeaturesT[-1, :]
-        # 历史特征是前 lntr 行 (索引 t-lntr 到 t-1)
         history_feats = FeaturesT[:-1, :]
-        
-        # --------------------------------------
-        # B. 计算核权重 (Kernel Weights) - 向量化优化
-        # --------------------------------------
-        
-        # 计算 history_feats 中每一行与 current_feat 的距离
-        # axis=1 表示对每一行求范数
+
+        # B. 核权重
         dists = np.linalg.norm(history_feats - current_feat, axis=1)
-        
-        # 高斯核函数计算权重
-        # kernel_weight = normpdf(dist / bandwidth)
         weights = norm.pdf(dists / bandwidth)
-        
-        # 归一化权重
-        weights_sum = np.sum(weights)
-        if weights_sum == 0:
-            weights_norm = np.ones(lntr) / lntr # 避免除以0，平均分配
-        else:
-            weights_norm = weights / weights_sum
-            
-        # --------------------------------------
-        # C. 排序与分位数查找 (Sort & Quantile)
-        # --------------------------------------
-        demand_history = Demand[t - lntr + delay : t + delay]
-        
-        # 对需求进行排序
-        sort_idx = np.argsort(demand_history)
-        sDemand = demand_history[sort_idx]
-        
-        # 按照同样的顺序排列权重
-        sWeights = weights_norm[sort_idx]
-        
-        # 计算累积分布 (CDF)
+        weights_norm = weights / (np.sum(weights) if np.sum(weights) > 0 else 1.0)
+        if np.sum(weights) == 0: weights_norm[:] = 1.0 / lntr
+
+        # C. 排序与分位数
+        end_idx = t + delay
+        if end_idx > TOTAL_LEN: break
+
+        demand_h = Demand[t - lntr + delay: end_idx]
+        # 对齐长度
+        min_len = min(len(demand_h), len(weights_norm))
+        demand_h = demand_h[:min_len]
+        weights_n = weights_norm[:min_len]
+
+        sort_idx = np.argsort(demand_h)
+        sDemand = demand_h[sort_idx]
+        sWeights = weights_n[sort_idx]
+
         kernel_cdf = np.cumsum(sWeights)
-        
-        # 找到第一个 CDF >= r 的位置
-        # 使用 argmax(condition)
         idx_opt = np.argmax(kernel_cdf >= r)
-        
         q0 = sDemand[idx_opt]
-        
-        # --------------------------------------
-        # D. 记录结果与计算成本
-        # --------------------------------------
-        # 记录最优订货量 (注意索引偏移，QfacD 是从 0 开始存)
-        
-        save_idx = t - lntr #
-        if save_idx < QfacD.shape[1]:
-            QfacD[bi, save_idx] = q0
-            
-            # 计算真实成本
-            actual_demand = Demand[t + delay]
-            Valfac[bi, save_idx] = nv_cost(q0, actual_demand, b, h)
 
-end_time = time.time()
-print(f"Total time: {end_time - start_time:.4f} seconds")
+        # D. 记录
+        Q_list[k] = q0
+        if t + delay < TOTAL_LEN:
+            actual = Demand[t + delay]
+            Cost_list[k] = nv_cost(q0, actual, b, h)
+
+    # 将当前带宽的结果存入字典
+    results_dict[f'Decision_Q_bw{bandwidth}'] = Q_list
+    results_dict[f'Cost_bw{bandwidth}'] = Cost_list
+
+print(f"Total time: {time.time() - start_time:.4f} s")
 
 # ==========================================
-# 6. 保存结果
+# 6. 保存结果 (CSV)
 # ==========================================
-output_filename = f'nv_kernelG_de2_{delay}_lntr_{lntr}_python.mat'
+output_filename = f'nv_kernelG_de2_{delay}_simple_python.csv'
 
-results = {
-    'Valfac': Valfac,
-    'QfacD': QfacD,
-    'bandvec': bandvec,
-    'p': p
-}
-
-scipy.io.savemat(output_filename, results)
+df_out = pd.DataFrame(results_dict)
+df_out.to_csv(output_filename, index=False)
 print(f"Results saved to {output_filename}")

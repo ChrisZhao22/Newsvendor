@@ -1,16 +1,18 @@
 import numpy as np
 import scipy.io
+import json
+import pandas as pd
 import matplotlib.pyplot as plt
 
 # ==========================================
-# 统一数据生成器 (Ground Truth Generator)
+# Data Generator
 # ==========================================
-np.random.seed(2025) # 固定随机种子，保证每次生成的一样
+np.random.seed(2025)
 
 TOTAL_LEN = 5000
-lntr = 1344
-lnva = 672
-lnte = 672
+lntr = 1344 # train
+lnva = 672 # validation
+lnte = 672 # test
 
 # 1. 生成特征
 # -----------------------------
@@ -18,13 +20,10 @@ lnte = 672
 DayC = np.random.randint(1, 8, (TOTAL_LEN, 1))
 # Time: 时间趋势 (0-100)
 Time = np.linspace(0, 100, TOTAL_LEN).reshape(-1, 1)
-# TimeC: 一天内的时间段 (1-24)
-TimeC = np.random.randint(1, 25, (TOTAL_LEN, 1))
 
-# Past: 历史特征 (模拟一些滞后变量)
-Past = np.random.randn(TOTAL_LEN, 300)
 
-# 2. 生成需求 (构造一个复杂的真实函数)
+print(DayC.flatten().shape)
+# 2. Demand Generator
 # -----------------------------
 # 基础线性部分
 base_demand = 50 + 2 * DayC.flatten() + 0.2 * Time.flatten()
@@ -45,25 +44,45 @@ Demand = np.maximum(Demand, 0) # 需求不能为负
 # 3. 可视化检查
 # -----------------------------
 plt.figure(figsize=(12, 4))
-plt.plot(Demand[:1000], label='First 1000 days Demand')
+plt.plot(Demand[:188], label='First 188 days Demand')
 plt.title(f'Generated Data (Mean: {Demand.mean():.2f}, Std: {Demand.std():.2f})')
 plt.legend()
 plt.show()
 
 # 4. 保存为统一的数据文件
 # -----------------------------
-filename = 'ground_truth.mat'
-data = {
-    'Demand': Demand,
-    'DayC': DayC,
-    'Time': Time,
-    'TimeC': TimeC,
-    'Past': Past,
-    # 顺便把切分参数也存进去，保证大家切分一致
+data_matrix = np.hstack([
+    DayC,
+    Time,
+    Demand.reshape(-1, 1)
+])
+
+# 定义列名
+columns = ['DayC', 'Time','Demand']
+
+# 创建 DataFrame
+df = pd.DataFrame(data_matrix, columns=columns)
+
+# 保存数据文件
+csv_filename = 'newsvendor_simple_data.csv'
+df.to_csv(csv_filename, index=False)
+
+print(f"数据已成功保存至: {csv_filename}")
+print(f"数据维度: {df.shape}")
+print(f"前5行预览:\n{df.head()}")
+
+# ==========================================
+# 4. 保存切分配置
+# ==========================================
+# 将切分参数单独保存，方便后续模型调用
+config = {
     'lntr': lntr,
     'lnva': lnva,
-    'lnte': lnte
+    'lnte': lnte,
+    'description': 'Simple feature set without Past variables'
 }
+json_filename = 'data_config.json'
+with open(json_filename, 'w') as f:
+    json.dump(config, f)
 
-scipy.io.savemat(filename, data)
-print(f"统一数据已保存至: {filename}")
+print(f"切分参数已保存至: {json_filename}")

@@ -1,19 +1,21 @@
-import scipy.io
-import numpy as np
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import os
 
 # ==========================================
-# 1. 配置：定义要对比的model
+# 1. 配置：定义要对比的 model 及对应的 CSV 文件
 # ==========================================
 
+# 请确保这些文件名与您实际运行生成的 CSV 文件名一致
 files = {
-    'Est-Opt (OLS)': 'nv_emerg_estopt_os_3_lntr_1344_lnva_672_python.mat',
-    'Kernel Opt': 'nv_kernelG_de2_3_lntr_1344_python.mat',  # 注意检查文件名
-    'Regularized': 'nv_emerg_reg_L1_0.1_python.mat',
-    'SAA': 'nv_emerg_SAA_lntr_1344_lnte_672_python.mat',
-    'Minimax (Scarf)': 'nv_emerg_scarf_de_3_lntr_1344_lnva_672_p_120_python.mat'  # 取其中一个p值
+    'Est-Opt (OLS)': 'nv_emerg_estopt_os_3_simple_python.csv',
+    'Kernel Opt': 'nv_kernelG_de2_3_simple_python.csv',
+    'Regularized': 'nv_emerg_reg_L1_0.1_simple_python.csv',
+    'SAA': 'nv_emerg_SAA_lntr_1344_lnte_672_python.csv',
+    'Minimax (Scarf)': 'nv_emerg_scarf_de_3_simple_python.csv',
+    'BinSmoother': 'nv_local_poly_J5_python.csv',
+    'RKHS': 'nv_kernel_quantile_lambda0.01_python.csv',
 }
 
 results = {}
@@ -29,20 +31,34 @@ for model_name, filename in files.items():
         continue
 
     try:
-        data = scipy.io.loadmat(filename)
+        # 读取 CSV
+        df_model = pd.read_csv(filename)
 
         # 提取成本数据
-        # 不同的脚本用了不同的变量名存储成本
-        # SAA用的是 'TestSAA', 其他的基本是 'Valfac'
-        if 'Valfac' in data:
-            cost_array = data['Valfac'].flatten()
-        elif 'TestSAA' in data:
-            cost_array = data['TestSAA'].flatten()
-        else:
-            print(f"⚠️ 在 {filename} 中找不到成本数据变量 (Valfac/TestSAA)")
+        # 不同算法的 CSV 中，成本列的名称可能不同，这里做兼容处理
+        # 常见列名: 'Cost', 'Realized_Cost', 'Valfac', 'OutOfSample_Cost', 'Cost_bw0.08'
+
+        cost_array = None
+
+        # 1. 尝试直接匹配常见列名
+        possible_cols = ['Cost', 'Realized_Cost', 'Valfac', 'OutOfSample_Cost', 'TestSAA']
+        for col in possible_cols:
+            if col in df_model.columns:
+                cost_array = df_model[col].values
+                break
+
+        # 2. 如果没找到，尝试模糊匹配 (比如 Kernel Opt 输出的是 Cost_bw0.08)
+        if cost_array is None:
+            for col in df_model.columns:
+                if 'Cost' in col or 'Valfac' in col:
+                    cost_array = df_model[col].values
+                    break
+
+        if cost_array is None:
+            print(f"⚠️ 在 {filename} 中找不到成本数据列 (Available: {df_model.columns.tolist()})")
             continue
 
-        # 我们取前 100 个有效数据
+        # 我们取前 100 个有效数据进行绘图 (或者取全部)
         valid_len = 100
         if len(cost_array) > valid_len:
             cost_array = cost_array[:valid_len]
@@ -54,7 +70,7 @@ for model_name, filename in files.items():
         print(f"❌ 读取 {filename} 失败: {e}")
 
 if not results:
-    print("没有加载到任何数据，请先运行之前的 5 个模型生成 .mat 文件。")
+    print("没有加载到任何数据，请先运行之前的 5 个算法脚本生成 .csv 文件。")
     exit()
 
 # ==========================================
@@ -75,11 +91,11 @@ summary = pd.DataFrame({
 # 按平均成本排序 (越低越好)
 summary = summary.sort_values(by='Mean Cost')
 
-print("\n" + "=" * 40)
+print("\n" + "=" * 60)
 print("📊 模型性能对比排行榜 (Cost 越低越好)")
-print("=" * 40)
+print("=" * 60)
 print(summary)
-print("=" * 40)
+print("=" * 60)
 
 # ==========================================
 # 4. 可视化对比 (Matplotlib)
@@ -88,8 +104,10 @@ plt.figure(figsize=(14, 6))
 
 # 图 1: 平均单步成本对比 (柱状图)
 plt.subplot(1, 2, 1)
+# 生成颜色
 colors = plt.cm.viridis(np.linspace(0, 1, len(summary)))
 bars = plt.bar(summary.index, summary['Mean Cost'], color=colors)
+
 plt.title('Average Cost per Period (Lower is Better)')
 plt.ylabel('Cost')
 plt.grid(axis='y', linestyle='--', alpha=0.7)
