@@ -8,8 +8,8 @@ import os
 # ==========================================
 # 1. 数据加载
 # ==========================================
-data_file = 'newsvendor_simple_data.csv'
-config_file = 'data_config.json'
+data_file = '../newsvendor_simple_data.csv'
+config_file = '../data_config.json'
 
 if not os.path.exists(data_file):
     raise FileNotFoundError("找不到数据文件！")
@@ -103,7 +103,7 @@ print(f"Total time: {time.time() - start_time:.2f} s")
 # ==========================================
 # 5. 保存结果 (CSV)
 # ==========================================
-output_filename = f'nv_emerg_reg_L1_{lambda_val}_simple_python.csv'
+output_filename = f'../data/nv_emerg_reg_L1_{lambda_val}_simple_python.csv'
 
 data_dict = {
     'Decision_Q': QfacD,

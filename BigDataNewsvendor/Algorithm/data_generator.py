@@ -64,7 +64,7 @@ columns = ['DayC', 'Time','Demand']
 df = pd.DataFrame(data_matrix, columns=columns)
 
 # 保存数据文件
-csv_filename = 'newsvendor_simple_data.csv'
+csv_filename = '../data/newsvendor_simple_data.csv'
 df.to_csv(csv_filename, index=False)
 
 print(f"数据已成功保存至: {csv_filename}")
@@ -81,7 +81,7 @@ config = {
     'lnte': lnte,
     'description': 'Simple feature set without Past variables'
 }
-json_filename = 'data_config.json'
+json_filename = '../data/data_config.json'
 with open(json_filename, 'w') as f:
     json.dump(config, f)
 

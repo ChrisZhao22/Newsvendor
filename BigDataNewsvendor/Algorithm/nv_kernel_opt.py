@@ -8,8 +8,8 @@ import os
 # ==========================================
 # 1. 数据加载
 # ==========================================
-data_file = 'newsvendor_simple_data.csv'
-config_file = 'data_config.json'
+data_file = '../newsvendor_simple_data.csv'
+config_file = '../data_config.json'
 
 if not os.path.exists(data_file): raise FileNotFoundError("找不到数据文件！")
 
@@ -109,7 +109,7 @@ print(f"Total time: {time.time() - start_time:.4f} s")
 # ==========================================
 # 6. 保存结果 (CSV)
 # ==========================================
-output_filename = f'nv_kernelG_de2_{delay}_simple_python.csv'
+output_filename = f'../data/nv_kernelG_de2_{delay}_simple_python.csv'
 
 df_out = pd.DataFrame(results_dict)
 df_out.to_csv(output_filename, index=False)

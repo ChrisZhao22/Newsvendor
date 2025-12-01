@@ -9,13 +9,13 @@ import os
 
 # 请确保这些文件名与您实际运行生成的 CSV 文件名一致
 files = {
-    'Est-Opt (OLS)': 'nv_emerg_estopt_os_3_simple_python.csv',
-    'Kernel Opt': 'nv_kernelG_de2_3_simple_python.csv',
-    'Regularized': 'nv_emerg_reg_L1_0.1_simple_python.csv',
-    'SAA': 'nv_emerg_SAA_lntr_1344_lnte_672_python.csv',
-    'Minimax (Scarf)': 'nv_emerg_scarf_de_3_simple_python.csv',
-    'BinSmoother': 'nv_local_poly_J5_python.csv',
-    'RKHS': 'nv_kernel_quantile_lambda0.01_python.csv',
+    'Est-Opt (OLS)': '../data/nv_emerg_estopt_os_3_simple_python.csv',
+    'Kernel Opt': '../data/nv_kernelG_de2_3_simple_python.csv',
+    'Regularized': '../data/nv_emerg_reg_L1_0.1_simple_python.csv',
+    'SAA': '../data/nv_emerg_SAA_lntr_1344_lnte_672_python.csv',
+    'Minimax (Scarf)': '../data/nv_emerg_scarf_de_3_simple_python.csv',
+    'BinSmoother': '../data/nv_local_poly_J5_python.csv',
+    'RKHS': '../data/nv_kernel_quantile_lambda0.01_python.csv',
 }
 
 results = {}

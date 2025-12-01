@@ -7,8 +7,8 @@ import os
 # ==========================================
 # 1. 数据加载
 # ==========================================
-data_file = 'newsvendor_simple_data.csv'
-config_file = 'data_config.json'
+data_file = '../newsvendor_simple_data.csv'
+config_file = '../data_config.json'
 
 if not os.path.exists(data_file) or not os.path.exists(config_file):
     raise FileNotFoundError("找不到数据文件，请先运行 data_generator.py！")
@@ -85,7 +85,7 @@ print(f"Loop finished in {end_time - start_time:.4f} seconds")
 # ==========================================
 # 5. 保存结果 (CSV)
 # ==========================================
-output_filename = f'nv_emerg_SAA_lntr_{lntr}_lnte_{lnte}_python.csv'
+output_filename = f'../data/nv_emerg_SAA_lntr_{lntr}_lnte_{lnte}_python.csv'
 
 # 构建 DataFrame
 df_out = pd.DataFrame({

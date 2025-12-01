@@ -9,8 +9,8 @@ import os
 # ==========================================
 # 1. 数据加载
 # ==========================================
-data_file = 'newsvendor_simple_data.csv'
-config_file = 'data_config.json'
+data_file = '../newsvendor_simple_data.csv'
+config_file = '../data_config.json'
 
 if not os.path.exists(data_file):
     raise FileNotFoundError("找不到数据文件！")
@@ -113,7 +113,7 @@ print(f"Loop finished in {time.time() - start_time:.2f} s")
 # ==========================================
 # 5. 保存结果 (CSV)
 # ==========================================
-output_filename = f'nv_emerg_estopt_os_{delay}_simple_python.csv'
+output_filename = f'../data/nv_emerg_estopt_os_{delay}_simple_python.csv'
 
 # 基础结果
 data_dict = {

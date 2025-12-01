@@ -9,8 +9,8 @@ from sklearn.metrics.pairwise import rbf_kernel
 # ==========================================
 # 1. 数据加载
 # ==========================================
-data_file = 'newsvendor_simple_data.csv'
-config_file = 'data_config.json'
+data_file = '../newsvendor_simple_data.csv'
+config_file = '../data_config.json'
 
 if not os.path.exists(data_file) or not os.path.exists(config_file):
     raise FileNotFoundError("找不到数据文件，请先运行 data_generator.py！")
@@ -208,7 +208,7 @@ print(f"Total time: {end_time - start_time:.2f} seconds")
 # ==========================================
 # 5. 保存结果 (CSV)
 # ==========================================
-output_filename = f'nv_kernel_quantile_lambda{lambda_reg}_python.csv'
+output_filename = f'../data/nv_kernel_quantile_lambda{lambda_reg}_python.csv'
 
 df_out = pd.DataFrame({
     'Decision_Q': Q_pred,
