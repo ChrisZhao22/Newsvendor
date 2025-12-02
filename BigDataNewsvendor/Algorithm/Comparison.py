@@ -8,7 +8,7 @@ import os
 # ==========================================
 
 files = {
-    'Est-Opt (OLS)': '../data/nv_ETO_python.csv',
+    'Est-Opt (OLS)': '../data/nv_ETO.csv',
     'Kernel Opt': '../data/nv_kernel.csv',
     'ERM': '../data/nv_ERM.csv',
     'SAA': '../data/nv_SAA.csv',

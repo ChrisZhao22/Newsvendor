@@ -5,6 +5,8 @@ import cvxpy as cp
 import time
 import os
 
+from fontTools.misc.bezierTools import epsilon
+
 # ==========================================
 # 1. 数据加载
 # ==========================================
@@ -32,7 +34,7 @@ print(f"已加载数据. Features: {feat_dim}")
 # ==========================================
 # 2. 参数设置
 # ==========================================
-lambda_val = 0.1
+lambda_val = 1e-7
 is_lasso = True
 b = 2.5 / 3.5
 h = 1 / 3.5
@@ -49,6 +51,7 @@ print(f"Start CVXPY Optimization (Lasso={is_lasso})...")
 start_time = time.time()
 
 start_idx = lntr + lnva
+
 for k in range(lnte):
     t = start_idx + k
     if k % 50 == 0: print(f"Step {k}/{lnte}")
@@ -56,7 +59,6 @@ for k in range(lnte):
     # A. 数据准备
     X_train_raw = Features_Raw[t - lntr: t, :]
     scale_factor = np.max(np.abs(X_train_raw))
-    if scale_factor == 0: scale_factor = 1.0
     X_train = X_train_raw / scale_factor
 
     y_train = Demand[t - lntr : t]
@@ -69,11 +71,16 @@ for k in range(lnte):
     underage = b * cp.maximum(y_train - predictions, 0)
     overage = h * cp.maximum(predictions - y_train, 0)
     empirical_risk = cp.sum(underage + overage) / lntr
-    # 加正则化：lasso
+    # 加正则化：lasso（当is_lasso参数取False时，为ridge regression）
     regularization = lambda_val * cp.norm(beta, 1) if is_lasso else lambda_val * cp.norm(beta, 2) ** 2
 
-    prob = cp.Problem(cp.Minimize(empirical_risk + regularization), [beta_0 >= 0, beta >= 0])
-    prob.solve(solver=cp.SCS, eps=1e-3) # 调用求解器进行一次求解
+    objective = cp.Minimize(empirical_risk + regularization)
+    constraints = [
+        # beta_0 >= 0,
+        # beta >= 0
+    ]
+    prob = cp.Problem(objective,constraints)
+    prob.solve(solver=cp.GUROBI) # 调用求解器进行一次求解
 
     # C. 记录
     Costfac[k] = prob.value
@@ -81,15 +88,14 @@ for k in range(lnte):
         coef[k, 0] = beta_0.value[0]
         coef[k, 1:] = beta.value
 
-        # D. 测试
+        # D. 计算样本外成本
         X_current = Features_Raw[t, :] / scale_factor
-        decision_q = max(0, beta_0.value[0] + X_current @ beta.value)
+        decision_q = beta_0.value[0] + X_current @ beta.value
         D_pred[k] = decision_q
 
         if t < TOTAL_LEN:
             actual = Demand[t]
-            out_of_sample_cost[k] = b * (actual - decision_q) if actual > decision_q else h * (decision_q - actual)
-
+            out_of_sample_cost[k] = np.maximum(actual - decision_q, 0) * b + np.maximum(decision_q - actual, 0) * h
 print(f"Total time: {time.time() - start_time:.2f} s")
 
 # ==========================================

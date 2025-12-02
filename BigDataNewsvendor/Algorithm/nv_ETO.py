@@ -4,7 +4,7 @@ import json
 from scipy.stats import norm
 from sklearn.linear_model import LinearRegression
 import time
-import os
+
 
 # ==========================================
 # 1. 数据加载
@@ -68,26 +68,24 @@ for i in range(lnte):
 
     # A. 准备数据
     X_train_raw = Features[t - lntr: t, :]
-    norm_val = np.linalg.norm(X_train_raw, ord=np.inf)
-    if norm_val == 0: norm_val = 1.0
-    X_train = X_train_raw / norm_val
-
+    scale_factor = np.max(np.abs(X_train_raw), axis=0)
+    X_train = X_train_raw / scale_factor
     y_train = Demand[t - lntr: t]
 
     # B. 均值回归
-    model_mean = LinearRegression(fit_intercept=True)
-    model_mean.fit(X_train, y_train)
+    model_mu = LinearRegression(fit_intercept=True)
+    model_mu.fit(X_train, y_train)
 
     # C. 方差回归
-    residuals = y_train - model_mean.predict(X_train)
+    residuals = y_train - model_mu.predict(X_train)
     y_train_var = np.log(residuals ** 2 + 1e-8)
-    model_var = LinearRegression(fit_intercept=True)
-    model_var.fit(X_train, y_train_var)
+    model_sigma = LinearRegression(fit_intercept=True)
+    model_sigma.fit(X_train, y_train_var)
 
     # D. 预测
-    X_current = Features[t, :].reshape(1, -1) / norm_val
-    mu_pred = model_mean.predict(X_current)[0]
-    sigma_pred = np.exp(model_var.predict(X_current)[0] / 2)
+    X_current = Features[t, :].reshape(1, -1) / scale_factor
+    mu_pred = model_mu.predict(X_current)[0]
+    sigma_pred = np.exp(model_sigma.predict(X_current)[0] / 2)
 
     muD[i] = mu_pred
     sigmaD[i] = sigma_pred
@@ -95,14 +93,15 @@ for i in range(lnte):
     # E. 优化
     z_score = norm.ppf(r)
     optimal_Q = mu_pred + sigma_pred * z_score
-    Q_pred[i] = optimal_Q
+    Q_pred[i] = max(optimal_Q,0)
 
     actual_demand = Demand[t]
     out_of_sample_cost[i] = nv_cost(optimal_Q, actual_demand, b, h)
 
     # 记录系数
-    coef_history[i, 0] = model_mean.intercept_
-    coef_history[i, 1:] = model_mean.coef_
+    coef_history[i, 0] = model_mu.intercept_
+    coef_history[i, 1:] = model_mu.coef_
+
 
 print(f"Loop finished in {time.time() - start_time:.2f} s")
 
