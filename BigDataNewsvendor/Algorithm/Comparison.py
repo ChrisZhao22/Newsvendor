@@ -7,14 +7,13 @@ import os
 # 1. 配置：定义要对比的 model 及对应的 CSV 文件
 # ==========================================
 
-# 请确保这些文件名与您实际运行生成的 CSV 文件名一致
 files = {
-    'Est-Opt (OLS)': '../data/nv_emerg_estopt_os_3_simple_python.csv',
-    'Kernel Opt': '../data/nv_kernelG_de2_3_simple_python.csv',
-    'Regularized': '../data/nv_emerg_reg_L1_0.1_simple_python.csv',
-    'SAA': '../data/nv_emerg_SAA_lntr_1344_lnte_672_python.csv',
-    'Minimax (Scarf)': '../data/nv_emerg_scarf_de_3_simple_python.csv',
-    'BinSmoother': '../data/nv_local_poly_J5_python.csv',
+    'Est-Opt (OLS)': '../data/nv_ETO_python.csv',
+    'Kernel Opt': '../data/nv_kernel.csv',
+    'ERM': '../data/nv_ERM.csv',
+    'SAA': '../data/nv_SAA.csv',
+    'Minimax (Scarf)': '../data/nv_scarf.csv',
+    'BinSmoother': '../data/nv_bin_smoother.csv',
     'RKHS': '../data/nv_kernel_quantile_lambda0.01_python.csv',
 }
 
@@ -27,7 +26,7 @@ print("正在读取结果文件...")
 # ==========================================
 for model_name, filename in files.items():
     if not os.path.exists(filename):
-        print(f"⚠️ 警告: 找不到文件 {filename}，跳过该模型。")
+        print(f"警告: 找不到文件 {filename}，跳过该模型。")
         continue
 
     try:
@@ -35,8 +34,6 @@ for model_name, filename in files.items():
         df_model = pd.read_csv(filename)
 
         # 提取成本数据
-        # 不同算法的 CSV 中，成本列的名称可能不同，这里做兼容处理
-        # 常见列名: 'Cost', 'Realized_Cost', 'Valfac', 'OutOfSample_Cost', 'Cost_bw0.08'
 
         cost_array = None
 
@@ -55,7 +52,7 @@ for model_name, filename in files.items():
                     break
 
         if cost_array is None:
-            print(f"⚠️ 在 {filename} 中找不到成本数据列 (Available: {df_model.columns.tolist()})")
+            print(f"在 {filename} 中找不到成本数据列 (Available: {df_model.columns.tolist()})")
             continue
 
         # 我们取前 100 个有效数据进行绘图 (或者取全部)
@@ -64,10 +61,10 @@ for model_name, filename in files.items():
             cost_array = cost_array[:valid_len]
 
         results[model_name] = cost_array
-        print(f"✅ 已加载: {model_name} (数据长度: {len(cost_array)})")
+        print(f"已加载: {model_name} (数据长度: {len(cost_array)})")
 
     except Exception as e:
-        print(f"❌ 读取 {filename} 失败: {e}")
+        print(f"读取 {filename} 失败: {e}")
 
 if not results:
     print("没有加载到任何数据，请先运行之前的 5 个算法脚本生成 .csv 文件。")
@@ -76,7 +73,6 @@ if not results:
 # ==========================================
 # 3. 数据分析 (Pandas DataFrame)
 # ==========================================
-# 将字典转为 DataFrame 方便计算
 df = pd.DataFrame(results)
 
 # 计算统计指标
@@ -92,13 +88,13 @@ summary = pd.DataFrame({
 summary = summary.sort_values(by='Mean Cost')
 
 print("\n" + "=" * 60)
-print("📊 模型性能对比排行榜 (Cost 越低越好)")
+print("模型性能对比排行榜 (Cost 越低越好)")
 print("=" * 60)
 print(summary)
 print("=" * 60)
 
 # ==========================================
-# 4. 可视化对比 (Matplotlib)
+# 4. 可视化对比
 # ==========================================
 plt.figure(figsize=(14, 6))
 

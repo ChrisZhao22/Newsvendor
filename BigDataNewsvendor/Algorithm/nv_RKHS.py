@@ -9,11 +9,9 @@ from sklearn.metrics.pairwise import rbf_kernel
 # ==========================================
 # 1. 数据加载
 # ==========================================
-data_file = '../newsvendor_simple_data.csv'
-config_file = '../data_config.json'
+data_file = '../data/newsvendor_simple_data.csv'
+config_file = '../data/data_config.json'
 
-if not os.path.exists(data_file) or not os.path.exists(config_file):
-    raise FileNotFoundError("找不到数据文件，请先运行 data_generator.py！")
 
 # 读取 CSV
 df = pd.read_csv(data_file)
@@ -33,19 +31,19 @@ lnva = config['lnva']
 lnte = config['lnte']
 TOTAL_LEN = len(Demand)
 
-print(f"✅ 已加载数据: {data_file}. Total Samples: {TOTAL_LEN}")
+print(f"已加载数据: {data_file}. Total Samples: {TOTAL_LEN}")
 print(f"   Features Shape: {Features_Raw.shape}")
 
 # ==========================================
-# 2. 参数设置 (Based on PDF)
+# 2. 参数设置
 # ==========================================
 # 报童参数
 b = 2.5 / 3.5
 h = 1 / 3.5
-tau = b / (b + h)  # Target Quantile (PDF notation: tau) [cite: 51-52]
+tau = b / (b + h)  # Target Quantile
 
 # 模型参数
-# Regularization parameter C = 1 / (lambda * m) [cite: 178]
+# Regularization parameter C = 1 / (lambda * m)
 # 我们这里直接设定 lambda，然后在循环中计算 C
 lambda_reg = 0.01
 
@@ -87,11 +85,7 @@ def solve_kernel_quantile_dual(K, Y, C, tau):
 
     # 求解
     prob = cp.Problem(objective, constraints)
-    # 使用 OSQP 或 SCS 求解器
-    try:
-        prob.solve(solver=cp.OSQP, eps_abs=1e-4, eps_rel=1e-4)
-    except:
-        prob.solve(solver=cp.SCS, eps=1e-4)
+    prob.solve(solver=cp.OSQP, eps_abs=1e-4, eps_rel=1e-4)
 
     return alpha.value
 
@@ -139,10 +133,10 @@ for k in range(lnte):
         X_train = normalize(X_train_raw)
 
         m = len(Y_train)
-        C = 1.0 / (lambda_reg * m)  # [cite: 178]
+        C = 1.0 / (lambda_reg * m)
 
         # B. 计算核矩阵 K
-        # K_ij = k(x_i, x_j) [cite: 48]
+        # K_ij = k(x_i, x_j)
         K_train = rbf_kernel(X_train, gamma=gamma)
 
         # C. 求解对偶变量 alpha
@@ -208,10 +202,11 @@ print(f"Total time: {end_time - start_time:.2f} seconds")
 # ==========================================
 # 5. 保存结果 (CSV)
 # ==========================================
-output_filename = f'../data/nv_kernel_quantile_lambda{lambda_reg}_python.csv'
+output_filename = f'../data/nv_RKHS.csv'
 
 df_out = pd.DataFrame({
     'Decision_Q': Q_pred,
+    'Demand_D': Demand[start_idx: start_idx + lnte],
     'Realized_Cost': Cost_realized
 })
 

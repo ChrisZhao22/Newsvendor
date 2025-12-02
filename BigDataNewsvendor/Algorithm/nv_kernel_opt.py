@@ -8,10 +8,8 @@ import os
 # ==========================================
 # 1. 数据加载
 # ==========================================
-data_file = '../newsvendor_simple_data.csv'
-config_file = '../data_config.json'
-
-if not os.path.exists(data_file): raise FileNotFoundError("找不到数据文件！")
+data_file = '../data/newsvendor_simple_data.csv'
+config_file = '../data/data_config.json'
 
 df = pd.read_csv(data_file)
 Demand = df['Demand'].values
@@ -19,18 +17,18 @@ DayC = df['DayC'].values.reshape(-1, 1)
 Time = df['Time'].values.reshape(-1, 1)
 Features_Raw = np.hstack((DayC, Time))
 
+
 with open(config_file, 'r') as f: config = json.load(f)
 lntr = config['lntr']
 lnva = config['lnva']
 lnte = config['lnte']
 TOTAL_LEN = len(Demand)
 
-print(f"✅ 已加载数据. Features shape: {Features_Raw.shape}")
+print(f"已加载数据. Features shape: {Features_Raw.shape}")
 
 # ==========================================
 # 2. 参数设置
 # ==========================================
-delay = 3
 bandvec = [0.08]  # 带宽列表
 b = 2.5 / 3.5
 h = 1 / 3.5
@@ -44,8 +42,6 @@ def nv_cost(q, d, b, h):
 # ==========================================
 # 5. 主循环逻辑
 # ==========================================
-# 结果存储：如果有多个带宽，我们需要一种方式存储
-# 这里我们使用字典来收集每一列数据
 results_dict = {}
 
 start_time = time.time()
@@ -74,13 +70,9 @@ for bandwidth in bandvec:
         dists = np.linalg.norm(history_feats - current_feat, axis=1)
         weights = norm.pdf(dists / bandwidth)
         weights_norm = weights / (np.sum(weights) if np.sum(weights) > 0 else 1.0)
-        if np.sum(weights) == 0: weights_norm[:] = 1.0 / lntr
 
-        # C. 排序与分位数
-        end_idx = t + delay
-        if end_idx > TOTAL_LEN: break
 
-        demand_h = Demand[t - lntr + delay: end_idx]
+        demand_h = Demand[t - lntr: t]
         # 对齐长度
         min_len = min(len(demand_h), len(weights_norm))
         demand_h = demand_h[:min_len]
@@ -96,20 +88,19 @@ for bandwidth in bandvec:
 
         # D. 记录
         Q_list[k] = q0
-        if t + delay < TOTAL_LEN:
-            actual = Demand[t + delay]
-            Cost_list[k] = nv_cost(q0, actual, b, h)
+        actual = Demand[t]
+        Cost_list[k] = nv_cost(q0, actual, b, h)
 
     # 将当前带宽的结果存入字典
     results_dict[f'Decision_Q_bw{bandwidth}'] = Q_list
+    results_dict[f'Demand_D_bw{bandwidth}'] = Demand[start_idx:start_idx + lnte]
     results_dict[f'Cost_bw{bandwidth}'] = Cost_list
-
 print(f"Total time: {time.time() - start_time:.4f} s")
 
 # ==========================================
 # 6. 保存结果 (CSV)
 # ==========================================
-output_filename = f'../data/nv_kernelG_de2_{delay}_simple_python.csv'
+output_filename = f'../data/nv_kernel.csv'
 
 df_out = pd.DataFrame(results_dict)
 df_out.to_csv(output_filename, index=False)

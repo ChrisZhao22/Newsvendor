@@ -8,10 +8,8 @@ import os
 # ==========================================
 # 1. 数据加载
 # ==========================================
-data_file = '../newsvendor_simple_data.csv'
-config_file = '../data_config.json'
-
-if not os.path.exists(data_file): raise FileNotFoundError("找不到数据文件！")
+data_file = '../data/newsvendor_simple_data.csv'
+config_file = '../data/data_config.json'
 
 df = pd.read_csv(data_file)
 Demand = df['Demand'].values
@@ -23,16 +21,17 @@ lF = Features_Raw.shape[1]
 with open(config_file, 'r') as f: config = json.load(f)
 lntr = config['lntr']
 lnva = config['lnva']
+lnte = config['lnte']
 TOTAL_LEN = len(Demand)
 
-print(f"✅ 已加载数据. Features: {lF}")
+print(f"已加载数据. Features: {lF}")
 
 # ==========================================
 # 2. 参数设置
 # ==========================================
-delay = 3
 b = 2.5 / 3.5
 h = 1 / 3.5
+
 
 
 # ==========================================
@@ -45,29 +44,27 @@ def nv_cost(q, d, b, h):
 # ==========================================
 # 4. 主循环
 # ==========================================
-Valfac = np.zeros(lnva)
-QfacD = np.zeros(lnva)
-muD = np.zeros(lnva)
-sigmaD = np.zeros(lnva)
-ResOpt = np.zeros(lnva)
-Qfac_coefs = np.zeros((lnva, 1 + lF))  # Intercept + Features
+out_of_sample_cost = np.zeros(lnte)
+decision_q = np.zeros(lnte)
+muD = np.zeros(lnte)
+sigmaD = np.zeros(lnte)
+ResOpt = np.zeros(lnte)
+coefs = np.zeros((lnte, 1 + lF))  # Intercept + Features
 
 print("Processing Scarf Rule...")
 start_time = time.time()
 
-for k in range(lnva):
-    t = lntr + k
-    if k % 100 == 0: print(f"  Step {k}/{lnva}")
+for k in range(lnte):
+    start_idx = lntr + lnva
+    t = start_idx + k
+    if k % 100 == 0: print(f"  Step {k}/{lnte}")
 
     # A. 准备数据
     X_train_raw = Features_Raw[t - lntr: t, :]
     scale_factor = np.max(np.abs(X_train_raw), axis=0)
     scale_factor[scale_factor == 0] = 1.0
     X_train = X_train_raw / scale_factor
-
-    end_idx = t + delay
-    if end_idx > TOTAL_LEN: break
-    y_train = Demand[t - lntr + delay: end_idx]
+    y_train = Demand[t - lntr: t]
 
     # B. 均值回归
     model_mean = LinearRegression(fit_intercept=True)
@@ -93,35 +90,36 @@ for k in range(lnva):
     # Scarf Rule
     scarf_term = (np.sqrt(b) - 1.0 / np.sqrt(b))
     q_star = mu_val + (sigma_val / 2.0) * scarf_term
-    QfacD[k] = q_star
+    decision_q[k] = q_star
 
     # 记录系数
-    Qfac_coefs[k, 0] = model_mean.intercept_
-    Qfac_coefs[k, 1:] = model_mean.coef_
+    coefs[k, 0] = model_mean.intercept_
+    coefs[k, 1:] = model_mean.coef_
 
     # E. 成本
-    if t + delay < TOTAL_LEN:
-        actual = Demand[t + delay]
-        Valfac[k] = nv_cost(q_star, actual, b, h)
+    if t < TOTAL_LEN:
+        actual = Demand[t]
+        out_of_sample_cost[k] = nv_cost(q_star, actual, b, h)
 
 print(f"Finished in {time.time() - start_time:.2f}s")
 
 # ==========================================
 # 5. 保存结果 (CSV)
 # ==========================================
-output_filename = f'../data/nv_emerg_scarf_de_{delay}_simple_python.csv'
+output_filename = f'../data/nv_scarf.csv'
 
 data_dict = {
-    'Decision_Q': QfacD,
-    'Cost': Valfac,
+    'Decision_Q': decision_q,
+    'Decision_d':Demand[start_idx:start_idx + lnte],
+    'Cost': out_of_sample_cost,
     'Mu_Pred': muD,
     'Sigma_Pred': sigmaD,
     'Residual_Sum': ResOpt
 }
 # 展开系数
-for i in range(Qfac_coefs.shape[1]):
+for i in range(coefs.shape[1]):
     col = 'Coef_Intercept' if i == 0 else f'Coef_Feat_{i}'
-    data_dict[col] = Qfac_coefs[:, i]
+    data_dict[col] = coefs[:, i]
 
 df_out = pd.DataFrame(data_dict)
 df_out.to_csv(output_filename, index=False)

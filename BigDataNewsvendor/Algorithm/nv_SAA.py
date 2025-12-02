@@ -7,11 +7,8 @@ import os
 # ==========================================
 # 1. 数据加载
 # ==========================================
-data_file = '../newsvendor_simple_data.csv'
-config_file = '../data_config.json'
-
-if not os.path.exists(data_file) or not os.path.exists(config_file):
-    raise FileNotFoundError("找不到数据文件，请先运行 data_generator.py！")
+data_file = '../data/newsvendor_simple_data.csv'
+config_file = '../data/data_config.json'
 
 # 读取 CSV
 df = pd.read_csv(data_file)
@@ -26,7 +23,7 @@ lnva = config['lnva']
 lnte = config['lnte']
 TOTAL_LEN = len(Demand)
 
-print(f"✅ 已加载数据: {data_file} (Total: {TOTAL_LEN})")
+print(f"已加载数据: {data_file} (Total: {TOTAL_LEN})")
 
 # ==========================================
 # 2. 参数设置
@@ -54,7 +51,7 @@ def nv_cost(q, d, b, h):
 print(f"Start SAA Loop (Target Quantile: {r:.4f})")
 start_time = time.time()
 
-start_idx = lntr + lnva
+start_idx = lntr + lnva # test beginning index
 
 for k in range(lnte):
     t = start_idx + k
@@ -83,13 +80,14 @@ end_time = time.time()
 print(f"Loop finished in {end_time - start_time:.4f} seconds")
 
 # ==========================================
-# 5. 保存结果 (CSV)
+# 5. 保存结果
 # ==========================================
-output_filename = f'../data/nv_emerg_SAA_lntr_{lntr}_lnte_{lnte}_python.csv'
+output_filename = f'../data/nv_SAA.csv'
 
 # 构建 DataFrame
 df_out = pd.DataFrame({
     'Q_Decision': QSAA,
+    'Demand_D': Demand[start_idx:start_idx+lnte],
     'InSample_Cost': CostSAA,
     'OutOfSample_Cost': TestSAA
 })
