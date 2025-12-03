@@ -61,7 +61,6 @@ for k in range(lnte):
 
     # SAA 求解
     q0 = np.quantile(demand_train, r)
-    q0 = max(0, q0)
 
     # 计算样本内成本
     in_sample_costs = nv_cost(q0, demand_train, b, h)

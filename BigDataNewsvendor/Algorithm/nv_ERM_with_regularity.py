@@ -3,16 +3,12 @@ import pandas as pd
 import json
 import cvxpy as cp
 import time
-import os
-
-from fontTools.misc.bezierTools import epsilon
 
 # ==========================================
 # 1. 数据加载
 # ==========================================
 data_file = '../data/newsvendor_simple_data.csv'
 config_file = '../data/data_config.json'
-
 
 df = pd.read_csv(data_file)
 Demand = df['Demand'].values
@@ -34,7 +30,8 @@ print(f"已加载数据. Features: {feat_dim}")
 # ==========================================
 # 2. 参数设置
 # ==========================================
-lambda_val = 1e-7
+delay = 0
+lambda_val = 1e-7  # 可调参数（正则化程度）
 is_lasso = True
 b = 2.5 / 3.5
 h = 1 / 3.5
@@ -58,10 +55,10 @@ for k in range(lnte):
 
     # A. 数据准备
     X_train_raw = Features_Raw[t - lntr: t, :]
-    scale_factor = np.max(np.abs(X_train_raw))
+    scale_factor = np.max(np.sum(np.abs(X_train_raw), axis=1))
     X_train = X_train_raw / scale_factor
 
-    y_train = Demand[t - lntr : t]
+    y_train = Demand[t - lntr + delay: t + delay]
 
     # B. 建模
     beta_0 = cp.Variable(1)
@@ -75,12 +72,13 @@ for k in range(lnte):
     regularization = lambda_val * cp.norm(beta, 1) if is_lasso else lambda_val * cp.norm(beta, 2) ** 2
 
     objective = cp.Minimize(empirical_risk + regularization)
+    # 非负约束（GYB代码中存在，但其合理性存疑）
     constraints = [
-        # beta_0 >= 0,
-        # beta >= 0
+        beta_0 >= 0,
+        beta >= 0
     ]
-    prob = cp.Problem(objective,constraints)
-    prob.solve(solver=cp.GUROBI) # 调用求解器进行一次求解
+    prob = cp.Problem(objective, constraints)
+    prob.solve(solver=cp.GUROBI)  # 调用求解器进行一次求解
 
     # C. 记录
     Costfac[k] = prob.value
@@ -94,7 +92,7 @@ for k in range(lnte):
         D_pred[k] = decision_q
 
         if t < TOTAL_LEN:
-            actual = Demand[t]
+            actual = Demand[t + delay]
             out_of_sample_cost[k] = np.maximum(actual - decision_q, 0) * b + np.maximum(decision_q - actual, 0) * h
 print(f"Total time: {time.time() - start_time:.2f} s")
 
@@ -105,7 +103,7 @@ output_filename = f'../data/nv_ERM.csv'
 
 data_dict = {
     'Decision_Q': D_pred,
-    'Demand_D' : Demand[start_idx:start_idx + lnte],
+    'Demand_D': Demand[start_idx + delay:start_idx + lnte + delay],
     'Realized_Cost': out_of_sample_cost,
     'Optimization_Obj': Costfac
 }

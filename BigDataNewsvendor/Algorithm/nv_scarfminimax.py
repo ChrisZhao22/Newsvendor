@@ -29,9 +29,10 @@ print(f"已加载数据. Features: {lF}")
 # ==========================================
 # 2. 参数设置
 # ==========================================
+delay = 0
 b = 2.5 / 3.5
 h = 1 / 3.5
-
+r = b / (b + h)
 
 
 # ==========================================
@@ -61,10 +62,9 @@ for k in range(lnte):
 
     # A. 准备数据
     X_train_raw = Features_Raw[t - lntr: t, :]
-    scale_factor = np.max(np.abs(X_train_raw), axis=0)
-    scale_factor[scale_factor == 0] = 1.0
+    scale_factor = np.max(np.sum(np.abs(X_train_raw), axis=1))
     X_train = X_train_raw / scale_factor
-    y_train = Demand[t - lntr: t]
+    y_train = Demand[t - lntr + delay: t + delay]
 
     # B. 均值回归
     model_mean = LinearRegression(fit_intercept=True)
@@ -97,9 +97,8 @@ for k in range(lnte):
     coefs[k, 1:] = model_mean.coef_
 
     # E. 成本
-    if t < TOTAL_LEN:
-        actual = Demand[t]
-        out_of_sample_cost[k] = nv_cost(q_star, actual, b, h)
+    actual = Demand[t + delay]
+    out_of_sample_cost[k] = nv_cost(q_star, actual, b, h)
 
 print(f"Finished in {time.time() - start_time:.2f}s")
 
@@ -110,7 +109,7 @@ output_filename = f'../data/nv_scarf.csv'
 
 data_dict = {
     'Decision_Q': decision_q,
-    'Decision_d':Demand[start_idx:start_idx + lnte],
+    'Decision_d': Demand[start_idx + delay:start_idx + lnte + delay],
     'Cost': out_of_sample_cost,
     'Mu_Pred': muD,
     'Sigma_Pred': sigmaD,
