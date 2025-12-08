@@ -9,7 +9,7 @@ import os
 
 files = {
     'Est-Opt (OLS)': '../data/nv_ETO.csv',
-    'Kernel Opt': '../data/nv_kernel.csv',
+    'KO': '../data/nv_KO.csv',
     'ERM': '../data/nv_ERM.csv',
     'SAA': '../data/nv_SAA.csv',
     'Minimax (Scarf)': '../data/nv_scarf.csv',

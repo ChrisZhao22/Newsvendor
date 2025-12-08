@@ -1,5 +1,4 @@
 import numpy as np
-import scipy.io
 import json
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -11,9 +10,9 @@ import os
 np.random.seed(2025)
 
 TOTAL_LEN = 10000
-lntr = 1344*2 # train
-lnva = 672*2  # validation
-lnte = 672*2  # test
+lntr = 1344 * 2  # train
+lnva = 672 * 2  # validation
+lnte = 672 * 2  # test
 
 # 1. 生成特征
 # -----------------------------
@@ -28,8 +27,8 @@ print(f"DayC shape: {DayC.flatten().shape}")
 # -----------------------------
 
 # 为了方便计算非线性函数，先将 Time 归一化到 [0, 1] 和 [-0.5, 0.5]
-t_norm = (Time.flatten() - Time.min()) / (Time.max() - Time.min()) # [0, 1]
-t_centered = t_norm - 0.5 # [-0.5, 0.5]
+t_norm = (Time.flatten() - Time.min()) / (Time.max() - Time.min())  # [0, 1]
+t_centered = t_norm - 0.5  # [-0.5, 0.5]
 
 # --- 构造 Component 1: Hölder 特征项 ---
 # 核心：使用 |x|^2.3 构造严格符合 Hölder 系数的要求
@@ -43,7 +42,7 @@ smooth_trend = 50 + 20 * t_norm + 10 * (t_norm ** 2)
 # --- 构造 Component 3: 特征交互 (Interaction) ---
 # 让 DayC 对 Demand 的影响不再是线性的，而是随时间变化的
 # 例如：周末(DayC大)在旺季(sin波峰)销量更高
-day_normalized = DayC.flatten() / 7.0 # 归一化到 [0.14, 1]
+day_normalized = DayC.flatten() / 7.0  # 归一化到 [0.14, 1]
 interaction = 15 * np.sin(4 * np.pi * t_norm) * (day_normalized ** 2)
 
 # --- 合成基础均值 ---
@@ -61,7 +60,7 @@ noise = np.random.normal(0, 1, TOTAL_LEN) * sigma_total
 
 # --- 最终需求 ---
 Demand = mu_demand + noise
-Demand = np.maximum(Demand, 0) # 需求非负截断
+Demand = np.maximum(Demand, 0)  # 需求非负截断
 
 # 3. 可视化检查
 # -----------------------------
@@ -69,7 +68,7 @@ plt.figure(figsize=(12, 6))
 
 # 子图1: 最终生成的 Demand
 plt.subplot(2, 1, 1)
-plt.plot(Demand[:500], label='First 500 samples', alpha=0.7)
+plt.plot(Demand[:10000], label='First 500 samples', alpha=0.7)
 plt.title(f'Complex Demand ($\mu={Demand.mean():.2f}, \sigma={Demand.std():.2f}$)')
 plt.ylabel('Demand')
 plt.legend()

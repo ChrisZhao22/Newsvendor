@@ -2,16 +2,16 @@ import numpy as np
 import pandas as pd
 import json
 import time
-import os
 import cvxpy as cp
 from sklearn.metrics.pairwise import rbf_kernel
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 # ==========================================
 # 1. 数据加载
 # ==========================================
 data_file = '../data/newsvendor_simple_data.csv'
 config_file = '../data/data_config.json'
-
 
 # 读取 CSV
 df = pd.read_csv(data_file)
@@ -212,3 +212,72 @@ df_out = pd.DataFrame({
 
 df_out.to_csv(output_filename, index=False)
 print(f"Results saved to {output_filename}")
+
+# ==========================================
+# 6. 可视化：AI美化版 (Professional Style)
+# ==========================================
+sns.set_theme(style="whitegrid", context="talk")
+
+# 创建画布，包含两个子图 (上下排列)
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(16, 12), gridspec_kw={'height_ratios': [1, 1]})
+
+# 定义时间轴和数据片段
+t = np.arange(lnte)
+y_demand = Demand[start_idx:start_idx + lnte]
+y_pred = Q_pred
+
+# ====================
+# 子图 1: 全局趋势 (Global View)
+# ====================
+# 1. 画线
+ax1.plot(t, y_demand, label='Actual Demand', color='#2c3e50', linewidth=1.5, alpha=0.8)  # 深蓝灰色
+ax1.plot(t, y_pred, label='Optimal Order (Q)', color='#e74c3c', linewidth=2.0, linestyle='-')  # 亮红色
+
+# 2. 填充成本区域 (高亮差异)
+# 当 订货 > 需求 (库存积压/Holding Cost) -> 用浅黄色/绿色填充
+ax1.fill_between(t, y_demand, y_pred, where=(y_pred >= y_demand),
+                 interpolate=True, color='#27ae60', alpha=0.15, label='Inventory (Overage)')
+# 当 订货 < 需求 (缺货损失/Stockout Cost) -> 用浅红色填充
+ax1.fill_between(t, y_demand, y_pred, where=(y_pred < y_demand),
+                 interpolate=True, color='#c0392b', alpha=0.15, label='Stockout (Underage)')
+
+# 3. 装饰
+ax1.set_title('NV-RKHS: Newsvendor Decision Analysis: Global Overview', fontsize=18, fontweight='bold', pad=15)
+ax1.set_ylabel('Quantity', fontsize=14)
+ax1.legend(loc='upper right', frameon=True, fancybox=True, shadow=True, fontsize=12)
+ax1.set_xlim(0, lnte)
+ax1.margins(x=0)
+
+# ====================
+# 子图 2: 细节放大 (Zoomed View)
+# ====================
+zoom_len = 300
+t_zoom = t[:zoom_len]
+y_demand_zoom = y_demand[:zoom_len]
+y_pred_zoom = y_pred[:zoom_len]
+
+# 1. 画线 (带数据点 Marker，方便看具体点的位置)
+ax1.plot(t_zoom, y_demand_zoom, color='#2c3e50', alpha=0, linewidth=0)  # 仅用于统一颜色逻辑，实际画在下面
+ax2.plot(t_zoom, y_demand_zoom, label='Actual Demand', color='#2c3e50',
+         linewidth=1.8, linestyle='-', marker='.', markersize=4, alpha=0.7)
+ax2.plot(t_zoom, y_pred_zoom, label='Optimal Order (Q)', color='#e74c3c',
+         linewidth=2.5, linestyle='-', alpha=0.9)  # 预测线通常平滑，不加marker防止太乱
+
+# 2. 填充区域 (同样高亮成本)
+ax2.fill_between(t_zoom, y_demand_zoom, y_pred_zoom, where=(y_pred_zoom >= y_demand_zoom),
+                 interpolate=True, color='#27ae60', alpha=0.2)
+ax2.fill_between(t_zoom, y_demand_zoom, y_pred_zoom, where=(y_pred_zoom < y_demand_zoom),
+                 interpolate=True, color='#c0392b', alpha=0.2)
+
+# 3. 装饰
+ax2.set_title(f'NV-RKHS: Zoomed Detail (First {zoom_len} Samples)', fontsize=16, fontweight='bold', pad=15)
+ax2.set_xlabel('Time Step / Index', fontsize=14)
+ax2.set_ylabel('Quantity', fontsize=14)
+ax2.set_xlim(0, zoom_len)
+ax2.grid(True, linestyle='--', alpha=0.6)  # 网格线虚线化
+
+# 调整整体布局防止重叠
+plt.tight_layout()
+plt.subplots_adjust(hspace=0.25)  # 调整两个图之间的间距
+
+plt.show()

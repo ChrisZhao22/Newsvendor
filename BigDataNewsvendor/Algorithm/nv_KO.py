@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import json
+from scipy.stats import norm
 import time
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -11,95 +12,98 @@ import seaborn as sns
 data_file = '../data/newsvendor_simple_data.csv'
 config_file = '../data/data_config.json'
 
-# 读取 CSV
 df = pd.read_csv(data_file)
 Demand = df['Demand'].values
+DayC = df['DayC'].values.reshape(-1, 1)
+Time = df['Time'].values.reshape(-1, 1)
+Features_Raw = np.hstack((DayC, Time))
 
-# 读取配置
-with open(config_file, 'r') as f:
-    config = json.load(f)
-
+with open(config_file, 'r') as f: config = json.load(f)
 lntr = config['lntr']
 lnva = config['lnva']
 lnte = config['lnte']
 TOTAL_LEN = len(Demand)
 
-print(f"已加载数据: {data_file} (Total: {TOTAL_LEN})")
+print(f"已加载数据. Features shape: {Features_Raw.shape}")
 
 # ==========================================
 # 2. 参数设置
 # ==========================================
+delay = 0
+bandvec = [0.08]  # 带宽列表
 b = 2.5 / 3.5
 h = 1 / 3.5
 r = b / (b + h)
 
-# 结果存储
-Q_pred = np.zeros(lnte)
-CostSAA = np.zeros(lnte)
-TestSAA = np.zeros(lnte)
 
-
-# ==========================================
-# 3. 辅助函数
-# ==========================================
 def nv_cost(q, d, b, h):
     return np.maximum(d - q, 0) * b + np.maximum(q - d, 0) * h
 
 
 # ==========================================
-# 4. 主循环逻辑 (SAA)
+# 5. 主循环逻辑
 # ==========================================
-print(f"Start SAA Loop (Target Quantile: {r:.4f})")
+results_dict = {}
+
 start_time = time.time()
 
-start_idx = lntr + lnva  # test beginning index
+for bandwidth in bandvec:
+    print(f"Processing bandwidth: {bandwidth}")
 
-for k in range(lnte):
-    t = start_idx + k
+    Q_pred = np.zeros(lnte)
+    Cost_list = np.zeros(lnte)
 
-    # 获取训练数据 (滚动窗口)
-    demand_train = Demand[t - lntr: t]
+    start_idx = lntr + lnva
 
-    # SAA 求解
-    q0 = np.quantile(demand_train, r)
+    for k in range(lnte):
+        t = start_idx + k
 
-    # 计算样本内成本
-    in_sample_costs = nv_cost(q0, demand_train, b, h)
-    avg_in_sample_cost = np.mean(in_sample_costs)
+        # A. 特征归一化(严格遵循gahyiban操作，滑动标准化+绝对值最大)
+        window_features = Features_Raw[t - lntr: t + 1, :].astype(float)
+        scale_factor = np.max(np.abs(window_features), axis=0)
+        FeaturesT = window_features / scale_factor
 
-    # 记录
-    Q_pred[k] = q0
-    CostSAA[k] = avg_in_sample_cost
+        current_feat = FeaturesT[-1, :]
+        history_feats = FeaturesT[:-1, :]
 
-    # 样本外测试
-    if t < TOTAL_LEN:
-        actual_demand = Demand[t]
-        TestSAA[k] = nv_cost(q0, actual_demand, b, h)
+        # B. 核权重
+        dists = np.linalg.norm(history_feats - current_feat, axis=1)
+        weights = norm.pdf(dists / bandwidth)
+        weights_norm = weights / (np.sum(weights) if np.sum(weights) > 0 else 1.0)
 
-end_time = time.time()
-print(f"Loop finished in {end_time - start_time:.4f} seconds")
+        demand_h = Demand[t - lntr + delay: t + delay]
+
+        sort_idx = np.argsort(demand_h)  # 给出demand从小到大排序后的索引
+        sDemand = demand_h[sort_idx]  # 得到真正从小到大排序后的需求量
+        sWeights = weights_norm[sort_idx]  # 得到真正从小到大排序后的需求量对应的权重
+
+        kernel_cdf = np.cumsum(sWeights)
+        idx_opt = np.argmax(kernel_cdf >= r)
+        q0 = sDemand[idx_opt]
+
+        # D. 记录
+        Q_pred[k] = q0
+        actual = Demand[t + delay]
+        Cost_list[k] = nv_cost(q0, actual, b, h)
+
+    # 将当前带宽的结果存入字典
+    results_dict[f'Decision_Q_bw{bandwidth}'] = Q_pred
+    results_dict[f'Demand_D_bw{bandwidth}'] = Demand[start_idx + delay:start_idx + lnte + delay]
+    results_dict[f'Cost_bw{bandwidth}'] = Cost_list
+print(f"Total time: {time.time() - start_time:.4f} s")
 
 # ==========================================
-# 5. 保存结果
+# 6. 保存结果 (CSV)
 # ==========================================
-output_filename = f'../data/nv_SAA.csv'
+output_filename = (f'../data/nv_KO.csv')
 
-# 构建 DataFrame
-df_out = pd.DataFrame({
-    'Q_Decision': Q_pred,
-    'Demand_D': Demand[start_idx:start_idx + lnte],
-    'InSample_Cost': CostSAA,
-    'OutOfSample_Cost': TestSAA
-})
-
+df_out = pd.DataFrame(results_dict)
 df_out.to_csv(output_filename, index=False)
 print(f"Results saved to {output_filename}")
 
 # ==========================================
-# 6. AI可视化：美化版 (Professional Style)
+# 7. 可视化：AI美化版 (Professional Style)
 # ==========================================
-
-# 设置风格 (如果没有安装 seaborn，可以注释掉这两行，单纯用 matplotlib 也可以)
 sns.set_theme(style="whitegrid", context="talk")
 
 # 创建画布，包含两个子图 (上下排列)
@@ -126,7 +130,7 @@ ax1.fill_between(t, y_demand, y_pred, where=(y_pred < y_demand),
                  interpolate=True, color='#c0392b', alpha=0.15, label='Stockout (Underage)')
 
 # 3. 装饰
-ax1.set_title('NV-SAA: Newsvendor Decision Analysis: Global Overview', fontsize=18, fontweight='bold', pad=15)
+ax1.set_title('NV-KO: Newsvendor Decision Analysis: Global Overview', fontsize=18, fontweight='bold', pad=15)
 ax1.set_ylabel('Quantity', fontsize=14)
 ax1.legend(loc='upper right', frameon=True, fancybox=True, shadow=True, fontsize=12)
 ax1.set_xlim(0, lnte)
@@ -154,7 +158,7 @@ ax2.fill_between(t_zoom, y_demand_zoom, y_pred_zoom, where=(y_pred_zoom < y_dema
                  interpolate=True, color='#c0392b', alpha=0.2)
 
 # 3. 装饰
-ax2.set_title(f'NV-SAA: Zoomed Detail (First {zoom_len} Samples)', fontsize=16, fontweight='bold', pad=15)
+ax2.set_title(f'NV-KO: Zoomed Detail (First {zoom_len} Samples)', fontsize=16, fontweight='bold', pad=15)
 ax2.set_xlabel('Time Step / Index', fontsize=14)
 ax2.set_ylabel('Quantity', fontsize=14)
 ax2.set_xlim(0, zoom_len)
