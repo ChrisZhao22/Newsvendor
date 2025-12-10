@@ -38,8 +38,8 @@ print(f"   Features Shape: {Features_Raw.shape}")
 # ==========================================
 # 报童参数
 delay = 0
-b = 2.5 / 3.5
-h = 1 / 3.5
+b = 3 / 4
+h = 1 / 4
 alpha = b / (b + h)  # Target Quantile alpha
 
 # 多项式阶数 k. PDF 定义 s(A) 为局部多项式的系数个数

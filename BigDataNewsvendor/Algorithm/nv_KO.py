@@ -31,8 +31,8 @@ print(f"已加载数据. Features shape: {Features_Raw.shape}")
 # ==========================================
 delay = 0
 bandvec = [0.08]  # 带宽列表
-b = 2.5 / 3.5
-h = 1 / 3.5
+b = 3 / 4
+h = 1 / 4
 r = b / (b + h)
 
 

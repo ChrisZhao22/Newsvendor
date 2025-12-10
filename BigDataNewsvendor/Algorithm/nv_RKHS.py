@@ -38,8 +38,8 @@ print(f"   Features Shape: {Features_Raw.shape}")
 # 2. 参数设置
 # ==========================================
 # 报童参数
-b = 2.5 / 3.5
-h = 1 / 3.5
+b = 3 / 4
+h = 1 / 4
 tau = b / (b + h)  # Target Quantile
 
 # 模型参数
